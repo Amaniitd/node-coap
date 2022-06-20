@@ -1,0 +1,39 @@
+
+
+file: incoming_message.ets
+
+dependencies:
+
+  - CoapMethod and OptionName from 'coap-packet'                Both Done 
+  - AddressInfo from 'net'                                      Done   
+  - Readable and ReadableOptions from 'readable-stream'         Not Done 
+            Readable is fairly large -> should we implement it as another library?
+            Dependable on the 'Buffer' library from nodejs
+
+
+
+file: outgoing_message.ets
+
+dependencies:
+
+  - Packet and OptionName from 'coap-packet'                
+            Both Done but Packet' needs interface of 'Buffer'
+  - BufferList from 'bl' -> Requires Buffer                     bl implemented
+
+
+implemented dependencies:
+  - BufferList from 'bl'
+  - CoapMethod, OptionName and Packet from 'coap-packet'
+  - AddressInfo and isIPv6 from 'net'
+  - inherits from 'util.inherits'  => used in bl 
+  - capitalize 
+
+
+Missing dependencies:
+  - 'buffer'
+
+  dependencies I can port:
+
+    - 'readable-stream'
+      https://github.com/nodejs/readable-stream
+      Very Large. Will take alot of time to convert in Typescript.
