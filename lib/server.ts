@@ -22,7 +22,7 @@ import { parseBlockOption } from './block'
 import { generate, NamedOption, Option, ParsedPacket } from 'coap-packet'
 import { parseBlock2, createBlock2, getOption, isNumeric, isBoolean } from './helpers'
 import { parameters } from './parameters'
-import series from 'fastseries'
+import series from './fastseries'
 import Debug from 'debug'
 const debug = Debug('CoAP Server')
 

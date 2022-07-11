@@ -7,7 +7,7 @@
  */
 
 import { EventEmitter } from 'events'
-import { parse } from 'coap-packet'
+import { parse } from './coap-packet'
 import { parameters } from './parameters'
 import { Socket } from 'dgram'
 

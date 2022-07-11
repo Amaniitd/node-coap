@@ -7,7 +7,7 @@
  */
 
 import crypto from 'crypto'
-import { parse, ParsedPacket } from 'coap-packet'
+import { parse, ParsedPacket } from './coap-packet'
 import { or, isOption } from './helpers'
 import { MiddlewareParameters } from '../models/models'
 

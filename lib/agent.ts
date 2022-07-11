@@ -10,7 +10,7 @@ import crypto = require('crypto')
 import { Socket, createSocket } from 'dgram'
 import { AgentOptions, CoapRequestParams, Block } from '../models/models'
 import { EventEmitter } from 'events'
-import { parse, generate, ParsedPacket } from 'coap-packet'
+import { parse, generate, ParsedPacket } from './coap-packet'
 import IncomingMessage from './incoming_message'
 import OutgoingMessage from './outgoing_message'
 import ObserveStream from './observe_read_stream'
@@ -18,7 +18,7 @@ import RetrySend from './retry_send'
 import { parseBlock2, createBlock2, getOption, removeOption } from './helpers'
 import { SegmentedTransmission } from './segmentation'
 import { parseBlockOption } from './block'
-import { AddressInfo } from 'net'
+import { AddressInfo } from './net'
 import { parameters } from './parameters'
 
 const maxToken = Math.pow(2, 32)

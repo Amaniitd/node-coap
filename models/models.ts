@@ -6,7 +6,7 @@
  * See the included LICENSE file for more details.
  */
 
-import { CoapMethod, OptionName, Packet, ParsedPacket } from 'coap-packet'
+import { CoapMethod, OptionName, Packet, ParsedPacket } from '../lib/coap-packet'
 import { Socket } from 'dgram'
 import { AddressInfo } from 'net'
 import Agent from '../lib/agent'
