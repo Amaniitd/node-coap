@@ -6,7 +6,7 @@ const perf =
     ? performance
     : Date
 
-const isPosInt = (n: string | number) => n && n === Math.floor(n) && n > 0 && isFinite(n)
+const isPosInt = (n: number | null ):boolean => n !=null && n === Math.floor(n) && n > 0 && isFinite(n)
 
 class ZeroArray extends Array {
   constructor(size: number | undefined) {
@@ -17,25 +17,25 @@ class ZeroArray extends Array {
 
 
 class Stack {
-  heap: any
+  heap: Uint8Array | Uint16Array | Uint32Array | ZeroArray | null 
   length: number
   constructor(max: number) {
     if (max === 0) {
-      return []
+      this.heap = []
     }
     const UintArray = getUintArray(max)
-    this.heap = new UintArray(max)
+    this.heap = new UintArray!(max)
     this.length = 0
   }
   push(n: any) {
-    this.heap[this.length++] = n
+    this.heap![this.length++] = n
   }
   pop() {
-    return this.heap[--this.length]
+    return this.heap![--this.length]
   }
 }
 
-const getUintArray = (max: string | number) =>
+const getUintArray = (max: number) =>
   !isPosInt(max)
     ? null
     : max <= Math.pow(2, 8)
@@ -48,14 +48,15 @@ const getUintArray = (max: string | number) =>
     ? ZeroArray
             : null
     
-const shouldWarn = (code: unknown) => !warned.has(code)
-const warned = new Set()
+// const shouldWarn = (code: unknown) => !warned.has(code)
+// const warned = new Set()
 
-const emitWarning = (...a: string[]) => {
-  typeof process === 'object' &&
-  process &&
-  typeof process.emitWarning === 'function' ? process.emitWarning(...(a as []) : console.error(...a)
-}
+// const emitWarning = (...a) => {
+//   typeof process === 'object' &&
+//   process &&
+//   typeof process.emitWarning === 'function' ? process.emitWarning(...(a as []) : console.error(...a)
+// }
+
 
 class LRUCache {
   [x: string]: any
@@ -76,8 +77,8 @@ class LRUCache {
   free: any
   initialFill: number
   ttlAutopurge: any
-  dispose: optiontype
-  disposeAfter: optiontype
+  dispose: any
+  disposeAfter: any
   disposed: any[] | null 
   noDisposeOnSet: boolean
   noUpdateTTL: boolean
@@ -97,7 +98,7 @@ class LRUCache {
 
 
 
-  constructor(options: optiontype) {
+  constructor(options: { max?: any; ttl?: any; ttlResolution?: any; ttlAutopurge?: any; updateAgeOnGet?: any; updateAgeOnHas?: any; allowStale?: any; dispose?: any; disposeAfter?: any; noDisposeOnSet?: any; noUpdateTTL?: any; maxSize?: any; sizeCalculation?: any; fetchMethod?: any; fetchContext?: any; noDeleteOnFetchRejection?: any; noDeleteOnStaleGet?: any; length?: any; maxAge?: any; stale?: any }) {
     const {
       max = 0,
       ttl,
@@ -116,9 +117,10 @@ class LRUCache {
       fetchContext,
       noDeleteOnFetchRejection,
       noDeleteOnStaleGet,
+      length = 0,
+      maxAge,
+      stale
     } = options
-    const { length, maxAge, stale } =
-      options instanceof LRUCache ? {} : options
 
     if (max !== 0 && !isPosInt(max)) {
       throw new TypeError('max option must be a nonnegative integer')
@@ -218,24 +220,24 @@ class LRUCache {
     }
     if (!this.ttlAutopurge && !this.max && !this.maxSize) {
       const code = 'LRU_CACHE_UNBOUNDED'
-      if (shouldWarn(code)) {
-        warned.add(code)
-        const msg =
-          'TTL caching without ttlAutopurge, max, or maxSize can ' +
-          'result in unbounded memory consumption.'
-        emitWarning(msg, 'UnboundedCacheWarning', code, LRUCache)
-      }
+      // if (shouldWarn(code)) {
+      //   warned.add(code)
+      //   const msg =
+      //     'TTL caching without ttlAutopurge, max, or maxSize can ' +
+      //     'result in unbounded memory consumption.'
+      //   emitWarning(msg, 'UnboundedCacheWarning', code, LRUCache)
+      // }
     }
 
-    if (stale) {
-      deprecatedOption('stale', 'allowStale')
-    }
-    if (maxAge) {
-      deprecatedOption('maxAge', 'ttl')
-    }
-    if (length) {
-      deprecatedOption('length', 'sizeCalculation')
-    }
+    // if (stale) {
+    //   deprecatedOption('stale', 'allowStale')
+    // }
+    // if (maxAge) {
+    //   deprecatedOption('maxAge', 'ttl')
+    // }
+    // if (length) {
+    //   deprecatedOption('length', 'sizeCalculation')
+    // }
   }
 
   purne() {
@@ -259,7 +261,7 @@ class LRUCache {
         const k = this.keyList[index]
         this.dispose(v, k, 'delete')
         if (this.disposeAfter) {
-          this.disposed.push([v, k, 'delete'])
+          this.disposed!.push([v, k, 'delete'])
         }
       }
     }
@@ -308,7 +310,7 @@ class LRUCache {
           } else {
             this.dispose(v, k, 'delete')
             if (this.disposeAfter) {
-              this.disposed.push([v, k, 'delete'])
+              this.disposed!.push([v, k, 'delete'])
             }
           }
           this.keyMap.delete(k)
@@ -340,6 +342,19 @@ class LRUCache {
   removeItemSize(index: number) {
     throw new Error("Method not implemented.")
   }
+  newIndex(): number {
+    if (this.size === 0) {
+      return this.tail
+    }
+    if (this.size === this.max && this.max !== 0) {
+      return this.evict(false)
+    }
+    if (this.free.length !== 0) {
+      return this.free.pop()
+    }
+    // initial fill, just keep writing down the list
+    return this.initialFill++
+  }
 
   set(
     k: any,
@@ -351,7 +366,7 @@ class LRUCache {
       size = 0,
       sizeCalculation = this.sizeCalculation,
       noUpdateTTL = this.noUpdateTTL,
-    } = {}
+    }
   ) {
     size = this.requireSize(k, v, size, sizeCalculation)
     let index = this.size === 0 ? undefined : this.keyMap.get(k)
@@ -377,7 +392,7 @@ class LRUCache {
           if (!noDisposeOnSet) {
             this.dispose(oldVal, k, 'set')
             if (this.disposeAfter) {
-              this.disposed.push([oldVal, k, 'set'])
+              this.disposed!.push([oldVal, k, 'set'])
             }
           }
         }
@@ -394,8 +409,8 @@ class LRUCache {
       this.setItemTTL(index, ttl, start)
     }
     if (this.disposeAfter) {
-      while (this.disposed.length) {
-        this.disposeAfter(...this.disposed.shift())
+      while (this.disposed!.length) {
+        this.disposeAfter(...this.disposed!.shift())
       }
     }
     return this
@@ -406,7 +421,7 @@ class LRUCache {
     this.sizes = new ZeroArray(this.max)
     this.removeItemSize = index =>
       (this.calculatedSize -= this.sizes[index])
-    this.requireSize = (k: any, v: any, size: string | number, sizeCalculation: (arg0: any, arg1: any) => any) => {
+    this.requireSize = (k: any, v: any, size: number, sizeCalculation: (arg0: any, arg1: any) => any) => {
       if (!isPosInt(size)) {
         if (sizeCalculation) {
           if (typeof sizeCalculation !== 'function') {
@@ -426,7 +441,7 @@ class LRUCache {
       }
       return size
     }
-    this.addItemSize = (index: string | number, v: any, k: any, size: any) => {
+    this.addItemSize = (index: number, v: any, k: any, size: any) => {
       this.sizes[index] = size
       const maxSize = this.maxSize - this.sizes[index]
       while (this.calculatedSize > maxSize) {
@@ -435,8 +450,29 @@ class LRUCache {
       this.calculatedSize += this.sizes[index]
     }
   }
-  evict(arg0: boolean) {
-    throw new Error("Method not implemented.")
+   evict(free: boolean) {
+    const head = this.head
+    const k = this.keyList[head]
+    const v = this.valList[head]
+    if (this.isBackgroundFetch(v)) {
+      v.__abortController.abort()
+    } else {
+      this.dispose(v, k, 'evict')
+      if (this.disposeAfter) {
+        this.disposed!.push([v, k, 'evict'])
+      }
+    }
+    this.removeItemSize(head)
+    // if we aren't about to use the index, then null these out
+    if (free) {
+      this.keyList[head] = null
+      this.valList[head] = null
+      this.free.push(head)
+    }
+    this.head = this.next[head]
+    this.keyMap.delete(k)
+    this.size--
+    return head
   }
   initializeTTLTracking() {
     this.ttls = new ZeroArray(this.max)
