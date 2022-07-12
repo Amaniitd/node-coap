@@ -1,27 +1,103 @@
 
-const optiontype = {
-  max: 'number',
-  ttl: 'number',
-  ttlResolution: 'number',
-  ttlAutopurger: 'number',
-  updateAgeOnGet: ,
-  updateAgeOnHas: ,
-  allowStale: ,
-  dispose: ,
-  disposeAfter: ,
-  noDisposeOnSet: ,
-  noUpdateTTL: ,
-  maxSize: 'number',
-  sizeCalculation: ,
-  fetchMethod: ,
-  fetchContext: ,
-  noDeleteOnFetchRejection:,
-  noDeleteOnStaleGet: 
+const perf =
+  typeof performance === 'object' &&
+  performance &&
+  typeof performance.now === 'function'
+    ? performance
+    : Date
+
+const isPosInt = (n: string | number) => n && n === Math.floor(n) && n > 0 && isFinite(n)
+
+class ZeroArray extends Array {
+  constructor(size: number | undefined) {
+    super(size)
+    this.fill(0)
+  }
 }
 
 
+class Stack {
+  heap: any
+  length: number
+  constructor(max: number) {
+    if (max === 0) {
+      return []
+    }
+    const UintArray = getUintArray(max)
+    this.heap = new UintArray(max)
+    this.length = 0
+  }
+  push(n: any) {
+    this.heap[this.length++] = n
+  }
+  pop() {
+    return this.heap[--this.length]
+  }
+}
+
+const getUintArray = (max: string | number) =>
+  !isPosInt(max)
+    ? null
+    : max <= Math.pow(2, 8)
+    ? Uint8Array
+    : max <= Math.pow(2, 16)
+    ? Uint16Array
+    : max <= Math.pow(2, 32)
+    ? Uint32Array
+    : max <= Number.MAX_SAFE_INTEGER
+    ? ZeroArray
+            : null
+    
+const shouldWarn = (code: unknown) => !warned.has(code)
+const warned = new Set()
+
+const emitWarning = (...a: string[]) => {
+  typeof process === 'object' &&
+  process &&
+  typeof process.emitWarning === 'function' ? process.emitWarning(...(a as []) : console.error(...a)
+}
+
 class LRUCache {
-  constructor(options = {}) {
+  [x: string]: any
+  fetchContext: any
+  fetchMethod: any
+  maxSize: number
+  max: number
+  ttl: number
+  sizeCalculation: number
+  size: number
+  keyMap: Map<any, number>
+  keyList: any[]
+  valList: any[]
+  next: ZeroArray | Uint32Array | Uint16Array | Uint8Array
+  prev: ZeroArray | Uint32Array | Uint16Array | Uint8Array
+  head: number
+  tail: number
+  free: any
+  initialFill: number
+  ttlAutopurge: any
+  dispose: optiontype
+  disposeAfter: optiontype
+  disposed: any[] | null 
+  noDisposeOnSet: boolean
+  noUpdateTTL: boolean
+  noDeleteOnFetchRejection: boolean
+  allowStale: boolean
+  noDeleteOnStaleGet: boolean
+  updateAgeOnGet: boolean
+  updateAgeOnHas: boolean
+  ttlResolution: any
+  ttls: any
+  starts: any
+  sizes: any
+  calculatedSize: number
+  updateItemAge: (index: any) => void
+  getRemainingTTL: (key: any) => number
+
+
+
+
+  constructor(options: optiontype) {
     const {
       max = 0,
       ttl,
@@ -41,7 +117,7 @@ class LRUCache {
       noDeleteOnFetchRejection,
       noDeleteOnStaleGet,
     } = options
-  const { length, maxAge, stale } =
+    const { length, maxAge, stale } =
       options instanceof LRUCache ? {} : options
 
     if (max !== 0 && !isPosInt(max)) {
@@ -172,6 +248,7 @@ class LRUCache {
     }
     return deleted
   }
+  
 
   reset() {
     for (const index of this.rindexes({ allowStale: true })) {
@@ -209,13 +286,13 @@ class LRUCache {
     }
   }
 
-  peek(k, { allowStale = this.allowStale } = {}) {
+  peek(k: any, { allowStale = this.allowStale } = {}) {
     const index = this.keyMap.get(k)
     if (index !== undefined && (allowStale || !this.isStale(index))) {
       return this.valList[index]
     }
   }
-  del(k) {
+  del(k: any) {
     let deleted = false
     if (this.size !== 0) {
       const index = this.keyMap.get(k)
@@ -257,10 +334,16 @@ class LRUCache {
     }
     return deleted
   }
+  clear() {
+    throw new Error("Method not implemented.")
+  }
+  removeItemSize(index: number) {
+    throw new Error("Method not implemented.")
+  }
 
   set(
-    k,
-    v,
+    k: any,
+    v: any,
     {
       ttl = this.ttl,
       start,
@@ -317,4 +400,105 @@ class LRUCache {
     }
     return this
   }
+  
+  initializeSizeTracking() {
+    this.calculatedSize = 0
+    this.sizes = new ZeroArray(this.max)
+    this.removeItemSize = index =>
+      (this.calculatedSize -= this.sizes[index])
+    this.requireSize = (k: any, v: any, size: string | number, sizeCalculation: (arg0: any, arg1: any) => any) => {
+      if (!isPosInt(size)) {
+        if (sizeCalculation) {
+          if (typeof sizeCalculation !== 'function') {
+            throw new TypeError('sizeCalculation must be a function')
+          }
+          size = sizeCalculation(v, k)
+          if (!isPosInt(size)) {
+            throw new TypeError(
+              'sizeCalculation return invalid (expect positive integer)'
+            )
+          }
+        } else {
+          throw new TypeError(
+            'invalid size value (must be positive integer)'
+          )
+        }
+      }
+      return size
+    }
+    this.addItemSize = (index: string | number, v: any, k: any, size: any) => {
+      this.sizes[index] = size
+      const maxSize = this.maxSize - this.sizes[index]
+      while (this.calculatedSize > maxSize) {
+        this.evict(true)
+      }
+      this.calculatedSize += this.sizes[index]
+    }
+  }
+  evict(arg0: boolean) {
+    throw new Error("Method not implemented.")
+  }
+  initializeTTLTracking() {
+    this.ttls = new ZeroArray(this.max)
+    this.starts = new ZeroArray(this.max)
+
+    this.setItemTTL = (index: string | number, ttl: number, start = perf.now()) => {
+      this.starts[index] = ttl !== 0 ? start : 0
+      this.ttls[index] = ttl
+      if (ttl !== 0 && this.ttlAutopurge) {
+        const t = setTimeout(() => {
+          if (this.isStale(index)) {
+            this.delete(this.keyList[index])
+          }
+        }, ttl + 1)
+        /* istanbul ignore else - unref() not supported on all platforms */
+        if (t.unref) {
+          t.unref()
+        }
+      }
+    }
+    this.updateItemAge = index => {
+      this.starts[index] = this.ttls[index] !== 0 ? perf.now() : 0
+    }
+
+    // debounce calls to perf.now() to 1s so we're not hitting
+    // that costly call repeatedly.
+    let cachedNow = 0
+    const getNow = () => {
+      const n = perf.now()
+      if (this.ttlResolution > 0) {
+        cachedNow = n
+        const t = setTimeout(
+          () => (cachedNow = 0),
+          this.ttlResolution
+        )
+        /* istanbul ignore else - not available on all platforms */
+        if (t.unref) {
+          t.unref()
+        }
+      }
+      return n
+    }
+    this.getRemainingTTL = key => {
+      const index = this.keyMap.get(key)
+      if (index === undefined) {
+        return 0
+      }
+      return this.ttls[index] === 0 || this.starts[index] === 0
+        ? Infinity
+        : this.starts[index] +
+            this.ttls[index] -
+            (cachedNow || getNow())
+    }
+
+    this.isStale = (index: string | number) => {
+      return (
+        this.ttls[index] !== 0 &&
+        this.starts[index] !== 0 &&
+        (cachedNow || getNow()) - this.starts[index] >
+          this.ttls[index]
+      )
+    }
+  }
+
 }
