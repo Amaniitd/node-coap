@@ -47,7 +47,7 @@ export default function fastseries (options) {
   }
 }
 
-function noResultEach (each, list, cb) {
+function noResultEach (each: any, list: string | any[], cb: () => void) {
   var i = 0
   var length = list.length
 
@@ -62,10 +62,10 @@ function noResultEach (each, list, cb) {
   }
 }
 
-function noResultList (list, arg, cb) {
+function noResultList (list: string | any[], arg: any, cb: () => void) {
   var i = 0
   var length = list.length
-  var makeCall
+  var makeCall: (cb: any, arg: any, release: any) => void
 
   if (list[0].length === 1) {
     makeCall = makeCallOne
@@ -142,7 +142,7 @@ function resultList (list, arg, cb) {
   }
 }
 
-function makeCallOne (cb, arg, release) {
+function makeCallOne (cb: (arg0: any) => void, arg: any, release: any) {
   cb(release)
 }
 

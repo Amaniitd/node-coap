@@ -165,7 +165,7 @@ export function generate (packet, maxLength = 1280) {
   return buffer
 }
 
-export function parse (buffer) {
+export function parse (buffer: Buffer) {
   index = 4
   parseVersion(buffer)
 
@@ -234,7 +234,7 @@ function parseCode (buffer) {
   return code
 }
 
-function parseToken (buffer) {
+function parseToken (buffer: Buffer) {
   let length = buffer.readUInt8(0) & 15
 
   if (length === 13) {
@@ -295,13 +295,13 @@ function optionNumberToString (number: number): string {
   return '' + number
 }
 
-function optionStringToNumber (string) {
+function optionStringToNumber (string: string) {
   const number = OPTIONS_BY_NAME[string]
   if (number) return number
   return parseInt(string)
 }
 
-function parseOptions (buffer) {
+function parseOptions (buffer: Buffer) {
   let number = 0
   const options: Option[] = []
 
@@ -369,7 +369,7 @@ function toCode (code) {
   return by
 }
 
-function fillGenDefaults (packet) {
+function fillGenDefaults (packet: { payload?: any; token?: any; code?: any; messageId?: any; options?: any; confirmable?: any; reset?: any; ack?: any; }) {
   if (!packet) {
     packet = {}
   }
@@ -417,8 +417,8 @@ function fillGenDefaults (packet) {
   return packet
 }
 
-function confirmableAckResetMask (packet) {
-  let result
+function confirmableAckResetMask (packet: { confirmable: any; ack: any; reset: any; }) {
+  let result: number
 
   if (packet.confirmable) {
     result = 0 << 4
@@ -433,7 +433,7 @@ function confirmableAckResetMask (packet) {
   return result
 }
 
-function calculateLength (packet, options) {
+function calculateLength (packet: { payload: string | any[]; token: string | any[]; code: string; }, options: string | any[]) {
   let length = 4 + packet.payload.length + packet.token.length
 
   if (packet.token.length > 12) {
@@ -472,16 +472,16 @@ function optionSorter (a, b) {
   return 0
 }
 
-function prepareOptions (packet) {
+function prepareOptions (packet: { options: any[]; }) {
   const options: Buffer[] = []
   let total = 0
-  let delta
+  let delta: number
   let buffer: Buffer
-  let byte
-  let option
-  let i
-  let pos
-  let value
+  let byte: number
+  let option: string
+  let i: number
+  let pos: number | undefined
+  let value: { length: number; copy: (arg0: Buffer, arg1: number) => void; }
 
   packet.options.sort(optionSorter)
 
