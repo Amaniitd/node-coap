@@ -65,7 +65,7 @@ class LRUCache {
   maxSize: number
   max: number
   ttl: number
-  sizeCalculation: number
+  sizeCalculation: any
   size: number
   keyMap: Map<any, number>
   keyList: any[]
@@ -79,7 +79,7 @@ class LRUCache {
   ttlAutopurge: any
   dispose: any
   disposeAfter: any
-  disposed: any[] | null 
+  disposed: any[] | null
   noDisposeOnSet: boolean
   noUpdateTTL: boolean
   noDeleteOnFetchRejection: boolean
@@ -255,14 +255,10 @@ class LRUCache {
   reset() {
     for (const index of this.rindexes({ allowStale: true })) {
       const v = this.valList[index]
-      if (this.isBackgroundFetch(v)) {
-        v.__abortController.abort()
-      } else {
-        const k = this.keyList[index]
-        this.dispose(v, k, 'delete')
-        if (this.disposeAfter) {
-          this.disposed!.push([v, k, 'delete'])
-        }
+      const k = this.keyList[index]
+      this.dispose(v, k, 'delete')
+      if (this.disposeAfter) {
+        this.disposed!.push([v, k, 'delete'])
       }
     }
     this.keyMap.clear()
@@ -294,6 +290,7 @@ class LRUCache {
       return this.valList[index]
     }
   }
+  
   del(k: any) {
     let deleted = false
     if (this.size !== 0) {
@@ -305,13 +302,9 @@ class LRUCache {
         } else {
           this.removeItemSize(index)
           const v = this.valList[index]
-          if (this.isBackgroundFetch(v)) {
-            v.__abortController.abort()
-          } else {
-            this.dispose(v, k, 'delete')
-            if (this.disposeAfter) {
-              this.disposed!.push([v, k, 'delete'])
-            }
+          this.dispose(v, k, 'delete')
+          if (this.disposeAfter) {
+            this.disposed!.push([v, k, 'delete'])
           }
           this.keyMap.delete(k)
           this.keyList[index] = null
@@ -336,12 +329,6 @@ class LRUCache {
     }
     return deleted
   }
-  clear() {
-    throw new Error("Method not implemented.")
-  }
-  removeItemSize(index: number) {
-    throw new Error("Method not implemented.")
-  }
   newIndex(): number {
     if (this.size === 0) {
       return this.tail
@@ -361,12 +348,12 @@ class LRUCache {
     v: any,
     {
       ttl = this.ttl,
-      start,
+      start = perf.now(),
       noDisposeOnSet = this.noDisposeOnSet,
       size = 0,
       sizeCalculation = this.sizeCalculation,
       noUpdateTTL = this.noUpdateTTL,
-    }
+    } = {}
   ) {
     size = this.requireSize(k, v, size, sizeCalculation)
     let index = this.size === 0 ? undefined : this.keyMap.get(k)
@@ -386,14 +373,10 @@ class LRUCache {
       // update
       const oldVal = this.valList[index]
       if (v !== oldVal) {
-        if (this.isBackgroundFetch(oldVal)) {
-          oldVal.__abortController.abort()
-        } else {
-          if (!noDisposeOnSet) {
-            this.dispose(oldVal, k, 'set')
-            if (this.disposeAfter) {
-              this.disposed!.push([oldVal, k, 'set'])
-            }
+        if (!noDisposeOnSet) {
+          this.dispose(oldVal, k, 'set')
+          if (this.disposeAfter) {
+            this.disposed!.push([oldVal, k, 'set'])
           }
         }
         this.removeItemSize(index)
@@ -415,52 +398,48 @@ class LRUCache {
     }
     return this
   }
-  
+  removeItemSize(index: string | number) {
+    (this.calculatedSize -= this.sizes[index])
+  }
+  requireSize(k: any, v: any, size: number, sizeCalculation: (arg0: any, arg1: any) => any) {
+    if (!isPosInt(size)) {
+      if (sizeCalculation) {
+        if (typeof sizeCalculation !== 'function') {
+          throw new TypeError('sizeCalculation must be a function')
+        }
+        size = sizeCalculation(v, k)
+        if (!isPosInt(size)) {
+          throw new TypeError(
+            'sizeCalculation return invalid (expect positive integer)'
+          )
+        }
+      } else {
+        throw new TypeError(
+          'invalid size value (must be positive integer)'
+        )
+      }
+    }
+    return size
+  }
+  addItemSize(index: number, v: any, k: any, size: number) {
+    this.sizes[index] = size
+    const maxSize = this.maxSize - this.sizes[index]
+    while (this.calculatedSize > maxSize) {
+      this.evict(true)
+    }
+    this.calculatedSize += this.sizes[index]
+  }
   initializeSizeTracking() {
     this.calculatedSize = 0
     this.sizes = new ZeroArray(this.max)
-    this.removeItemSize = index =>
-      (this.calculatedSize -= this.sizes[index])
-    this.requireSize = (k: any, v: any, size: number, sizeCalculation: (arg0: any, arg1: any) => any) => {
-      if (!isPosInt(size)) {
-        if (sizeCalculation) {
-          if (typeof sizeCalculation !== 'function') {
-            throw new TypeError('sizeCalculation must be a function')
-          }
-          size = sizeCalculation(v, k)
-          if (!isPosInt(size)) {
-            throw new TypeError(
-              'sizeCalculation return invalid (expect positive integer)'
-            )
-          }
-        } else {
-          throw new TypeError(
-            'invalid size value (must be positive integer)'
-          )
-        }
-      }
-      return size
-    }
-    this.addItemSize = (index: number, v: any, k: any, size: any) => {
-      this.sizes[index] = size
-      const maxSize = this.maxSize - this.sizes[index]
-      while (this.calculatedSize > maxSize) {
-        this.evict(true)
-      }
-      this.calculatedSize += this.sizes[index]
-    }
   }
-   evict(free: boolean) {
+  evict(free: boolean) {
     const head = this.head
     const k = this.keyList[head]
     const v = this.valList[head]
-    if (this.isBackgroundFetch(v)) {
-      v.__abortController.abort()
-    } else {
-      this.dispose(v, k, 'evict')
-      if (this.disposeAfter) {
-        this.disposed!.push([v, k, 'evict'])
-      }
+    this.dispose(v, k, 'evict')
+    if (this.disposeAfter) {
+      this.disposed!.push([v, k, 'evict'])
     }
     this.removeItemSize(head)
     // if we aren't about to use the index, then null these out
@@ -523,8 +502,8 @@ class LRUCache {
       return this.ttls[index] === 0 || this.starts[index] === 0
         ? Infinity
         : this.starts[index] +
-            this.ttls[index] -
-            (cachedNow || getNow())
+        this.ttls[index] -
+        (cachedNow || getNow())
     }
 
     this.isStale = (index: string | number) => {
@@ -532,9 +511,43 @@ class LRUCache {
         this.ttls[index] !== 0 &&
         this.starts[index] !== 0 &&
         (cachedNow || getNow()) - this.starts[index] >
-          this.ttls[index]
+        this.ttls[index]
       )
     }
   }
 
+  clear() {
+    for (const index of this.rindexes({ allowStale: true })) {
+      const v = this.valList[index]
+      const k = this.keyList[index]
+      this.dispose(v, k, 'delete')
+      if (this.disposeAfter) {
+        this.disposed?.push([v, k, 'delete'])
+      }
+    }
+  }
+   moveToTail(index: number) {
+    // if tail already, nothing to do
+    // if head, move head to next[index]
+    // else
+    //   move next[prev[index]] to next[index] (head has no prev)
+    //   move prev[next[index]] to prev[index]
+    // prev[index] = tail
+    // next[tail] = index
+    // tail = index
+    if (index !== this.tail) {
+      if (index === this.head) {
+        this.head = this.next[index]
+      } else {
+        this.connect(this.prev[index], this.next[index])
+      }
+      this.connect(this.tail, index)
+      this.tail = index
+    }
+  }
+  connect(p: number, n: number) {
+    this.prev[n] = p
+    this.next[p] = n
+  }
 }
+export default LRUCache
