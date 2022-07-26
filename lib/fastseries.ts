@@ -4,11 +4,11 @@ var defaults = {
   results: true
 }
 
-export default function fastseries (options) {
+export default function fastseries (options?) {
   options = Object.assign({}, defaults, options)
 
-  var seriesEach
-  var seriesList
+  var seriesEach: Function
+  var seriesList: Function
 
   if (options.results) {
     seriesEach = resultEach

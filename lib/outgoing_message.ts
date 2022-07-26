@@ -6,7 +6,7 @@
  * See the included LICENSE file for more details.
  */
 
-import BufferList from 'bl'
+import BufferList from './bl';
 import { CoapPacket, CoapRequestParams, OptionValue } from '../models/models'
 import { genAck, toCode, setOption } from './helpers'
 import RetrySend from './retry_send'
@@ -66,7 +66,7 @@ export default class OutgoingMessage extends BufferList implements BufferList {
     }
 
     end (a?: any, b?: any): this {
-        super.end(a, b)
+        super._end(a, b)
 
         const packet = this._packet
 

@@ -72,7 +72,7 @@ const empty = Buffer.alloc(0)
 
 // a global index for parsing the options and the payload
 // we can do this as the parsing is a sync operation
-let index
+let index: number
 
 // last five bits are 1
 // 31.toString(2) => '111111'
@@ -195,7 +195,7 @@ export function parse (buffer: Buffer) {
   return result
 }
 
-function parseVersion (buffer) {
+function parseVersion (buffer: Buffer) {
   const version = buffer.readUInt8(0) >> 6
 
   if (version !== 1) {
@@ -205,21 +205,21 @@ function parseVersion (buffer) {
   return version
 }
 
-function parseConfirmable (buffer) {
+function parseConfirmable (buffer: Buffer) {
   return (buffer.readUInt8(0) & 48) === 0
 }
 
-function parseReset (buffer) {
+function parseReset (buffer: Buffer) {
   // 110000 is 48
   return (buffer.readUInt8(0) & 48) === 48
 }
 
-function parseAck (buffer) {
+function parseAck (buffer: Buffer) {
   // 100000 is 32
   return (buffer.readUInt8(0) & 48) === 32
 }
 
-function parseCode (buffer) {
+function parseCode (buffer: Buffer) {
   let byte = buffer.readUInt8(1)
   let code = '' + (byte >> 5) + '.'
 
@@ -350,22 +350,19 @@ function parseOptions (buffer: Buffer) {
   return options
 }
 
-function toCode (code) {
+function toCode (code: string): number  {
   const split = code.split && code.split('.')
   let by = 0
-
   if (split && split.length === 2) {
     by |= parseInt(split[0]) << 5
     by |= parseInt(split[1])
   } else {
     if (!split) {
-      code = parseInt(code)
+      let code_int = parseInt(code)
+      by |= (code_int / 100) << 5
+      by |= (code_int % 100)
     }
-
-    by |= (code / 100) << 5
-    by |= (code % 100)
   }
-
   return by
 }
 

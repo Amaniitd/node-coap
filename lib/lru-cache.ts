@@ -1,553 +1,234 @@
+'use strict'
 
-const perf =
-  typeof performance === 'object' &&
-  performance &&
-  typeof performance.now === 'function'
-    ? performance
-    : Date
+// A linked list to keep track of recently-used-ness
+import Yallist from './yallist'
 
-const isPosInt = (n: number | null ):boolean => n !=null && n === Math.floor(n) && n > 0 && isFinite(n)
+const MAX = Symbol('max')
+const LENGTH = Symbol('length')
+const LENGTH_CALCULATOR = Symbol('lengthCalculator')
+const ALLOW_STALE = Symbol('allowStale')
+const MAX_AGE = Symbol('maxAge')
+const DISPOSE = Symbol('dispose')
+const NO_DISPOSE_ON_SET = Symbol('noDisposeOnSet')
+const LRU_LIST = Symbol('lruList')
+const CACHE = Symbol('cache')
+const UPDATE_AGE_ON_GET = Symbol('updateAgeOnGet')
 
-class ZeroArray extends Array {
-  constructor(size: number | undefined) {
-    super(size)
-    this.fill(0)
-  }
-}
+const naiveLength = () => 1
 
-
-class Stack {
-  heap: Uint8Array | Uint16Array | Uint32Array | ZeroArray | null 
-  length: number
-  constructor(max: number) {
-    if (max === 0) {
-      this.heap = []
-    }
-    const UintArray = getUintArray(max)
-    this.heap = new UintArray!(max)
-    this.length = 0
-  }
-  push(n: any) {
-    this.heap![this.length++] = n
-  }
-  pop() {
-    return this.heap![--this.length]
-  }
-}
-
-const getUintArray = (max: number) =>
-  !isPosInt(max)
-    ? null
-    : max <= Math.pow(2, 8)
-    ? Uint8Array
-    : max <= Math.pow(2, 16)
-    ? Uint16Array
-    : max <= Math.pow(2, 32)
-    ? Uint32Array
-    : max <= Number.MAX_SAFE_INTEGER
-    ? ZeroArray
-            : null
-    
-// const shouldWarn = (code: unknown) => !warned.has(code)
-// const warned = new Set()
-
-// const emitWarning = (...a) => {
-//   typeof process === 'object' &&
-//   process &&
-//   typeof process.emitWarning === 'function' ? process.emitWarning(...(a as []) : console.error(...a)
-// }
-
-
+// lruList is a yallist where the head is the youngest
+// item, and the tail is the oldest.  the list contains the Hit
+// objects as the entries.
+// Each Hit object has a reference to its Yallist.Node.  This
+// never changes.
+//
+// cache is a Map (or PseudoMap) that matches the keys to
+// the Yallist.Node object.
 class LRUCache {
-  [x: string]: any
-  fetchContext: any
-  fetchMethod: any
-  maxSize: number
-  max: number
-  ttl: number
-  sizeCalculation: any
-  size: number
-  keyMap: Map<any, number>
-  keyList: any[]
-  valList: any[]
-  next: ZeroArray | Uint32Array | Uint16Array | Uint8Array
-  prev: ZeroArray | Uint32Array | Uint16Array | Uint8Array
-  head: number
-  tail: number
-  free: any
-  initialFill: number
-  ttlAutopurge: any
-  dispose: any
-  disposeAfter: any
-  disposed: any[] | null
-  noDisposeOnSet: boolean
-  noUpdateTTL: boolean
-  noDeleteOnFetchRejection: boolean
-  allowStale: boolean
-  noDeleteOnStaleGet: boolean
-  updateAgeOnGet: boolean
-  updateAgeOnHas: boolean
-  ttlResolution: any
-  ttls: any
-  starts: any
-  sizes: any
-  calculatedSize: number
-  updateItemAge: (index: any) => void
-  getRemainingTTL: (key: any) => number
+  constructor (options?: { max?: any; length?: any; maxAge?: any; dispose?: any; stale?: any; noDisposeOnSet?: any; updateAgeOnGet?: any }| number) {
+    if (typeof options === 'number')
+      options = { max: options }
 
+    if (!options)
+      options = {}
 
+    if (options.max && (typeof options.max !== 'number' || options.max < 0))
+      throw new TypeError('max must be a non-negative number')
+    // Kind of weird to have a default max of Infinity, but oh well.
+    const max = this[MAX] = options.max || Infinity
 
-
-  constructor(options: { max?: any; ttl?: any; ttlResolution?: any; ttlAutopurge?: any; updateAgeOnGet?: any; updateAgeOnHas?: any; allowStale?: any; dispose?: any; disposeAfter?: any; noDisposeOnSet?: any; noUpdateTTL?: any; maxSize?: any; sizeCalculation?: any; fetchMethod?: any; fetchContext?: any; noDeleteOnFetchRejection?: any; noDeleteOnStaleGet?: any; length?: any; maxAge?: any; stale?: any }) {
-    const {
-      max = 0,
-      ttl,
-      ttlResolution = 1,
-      ttlAutopurge,
-      updateAgeOnGet,
-      updateAgeOnHas,
-      allowStale,
-      dispose,
-      disposeAfter,
-      noDisposeOnSet,
-      noUpdateTTL,
-      maxSize = 0,
-      sizeCalculation,
-      fetchMethod,
-      fetchContext,
-      noDeleteOnFetchRejection,
-      noDeleteOnStaleGet,
-      length = 0,
-      maxAge,
-      stale
-    } = options
-
-    if (max !== 0 && !isPosInt(max)) {
-      throw new TypeError('max option must be a nonnegative integer')
-    }
-
-    const UintArray = max ? getUintArray(max) : Array
-    if (!UintArray) {
-      throw new Error('invalid max value: ' + max)
-    }
-
-    this.max = max
-    this.maxSize = maxSize
-    this.sizeCalculation = sizeCalculation || length
-    if (this.sizeCalculation) {
-      if (!this.maxSize) {
-        throw new TypeError(
-          'cannot set sizeCalculation without setting maxSize'
-        )
-      }
-      if (typeof this.sizeCalculation !== 'function') {
-        throw new TypeError('sizeCalculation set to non-function')
-      }
-    }
-
-    this.fetchMethod = fetchMethod || null
-    if (this.fetchMethod && typeof this.fetchMethod !== 'function') {
-      throw new TypeError(
-        'fetchMethod must be a function if specified'
-      )
-    }
-
-    this.fetchContext = fetchContext
-    if (!this.fetchMethod && fetchContext !== undefined) {
-      throw new TypeError(
-        'cannot set fetchContext without fetchMethod'
-      )
-    }
-
-    this.keyMap = new Map()
-    this.keyList = new Array(max).fill(null)
-    this.valList = new Array(max).fill(null)
-    this.next = new UintArray(max)
-    this.prev = new UintArray(max)
-    this.head = 0
-    this.tail = 0
-    this.free = new Stack(max)
-    this.initialFill = 1
-    this.size = 0
-
-    if (typeof dispose === 'function') {
-      this.dispose = dispose
-    }
-    if (typeof disposeAfter === 'function') {
-      this.disposeAfter = disposeAfter
-      this.disposed = []
-    } else {
-      this.disposeAfter = null
-      this.disposed = null
-    }
-    this.noDisposeOnSet = !!noDisposeOnSet
-    this.noUpdateTTL = !!noUpdateTTL
-    this.noDeleteOnFetchRejection = !!noDeleteOnFetchRejection
-
-    if (this.maxSize !== 0) {
-      if (!isPosInt(this.maxSize)) {
-        throw new TypeError(
-          'maxSize must be a positive integer if specified'
-        )
-      }
-      this.initializeSizeTracking()
-    }
-
-    this.allowStale = !!allowStale || !!stale
-    this.noDeleteOnStaleGet = !!noDeleteOnStaleGet
-    this.updateAgeOnGet = !!updateAgeOnGet
-    this.updateAgeOnHas = !!updateAgeOnHas
-    this.ttlResolution =
-      isPosInt(ttlResolution) || ttlResolution === 0
-        ? ttlResolution
-        : 1
-    this.ttlAutopurge = !!ttlAutopurge
-    this.ttl = ttl || maxAge || 0
-    if (this.ttl) {
-      if (!isPosInt(this.ttl)) {
-        throw new TypeError(
-          'ttl must be a positive integer if specified'
-        )
-      }
-      this.initializeTTLTracking()
-    }
-
-    // do not allow completely unbounded caches
-    if (this.max === 0 && this.ttl === 0 && this.maxSize === 0) {
-      throw new TypeError(
-        'At least one of max, maxSize, or ttl is required'
-      )
-    }
-    if (!this.ttlAutopurge && !this.max && !this.maxSize) {
-      const code = 'LRU_CACHE_UNBOUNDED'
-      // if (shouldWarn(code)) {
-      //   warned.add(code)
-      //   const msg =
-      //     'TTL caching without ttlAutopurge, max, or maxSize can ' +
-      //     'result in unbounded memory consumption.'
-      //   emitWarning(msg, 'UnboundedCacheWarning', code, LRUCache)
-      // }
-    }
-
-    // if (stale) {
-    //   deprecatedOption('stale', 'allowStale')
-    // }
-    // if (maxAge) {
-    //   deprecatedOption('maxAge', 'ttl')
-    // }
-    // if (length) {
-    //   deprecatedOption('length', 'sizeCalculation')
-    // }
+    const lc = options.length || naiveLength
+    this[LENGTH_CALCULATOR] = (typeof lc !== 'function') ? naiveLength : lc
+    this[ALLOW_STALE] = options.stale || false
+    if (options.maxAge && typeof options.maxAge !== 'number')
+      throw new TypeError('maxAge must be a number')
+    this[MAX_AGE] = options.maxAge || 0
+    this[DISPOSE] = options.dispose
+    this[NO_DISPOSE_ON_SET] = options.noDisposeOnSet || false
+    this[UPDATE_AGE_ON_GET] = options.updateAgeOnGet || false
+    this.reset()
   }
 
-  purne() {
-    let deleted = false
-    for (const i of this.rindexes({ allowStale: true })) {
-      if (this.isStale(i)) {
-        this.delete(this.keyList[i])
-        deleted = true
-      }
-    }
-    return deleted
-  }
-  
 
-  reset() {
-    for (const index of this.rindexes({ allowStale: true })) {
-      const v = this.valList[index]
-      const k = this.keyList[index]
-      this.dispose(v, k, 'delete')
-      if (this.disposeAfter) {
-        this.disposed!.push([v, k, 'delete'])
-      }
-    }
-    this.keyMap.clear()
-    this.valList.fill(null)
-    this.keyList.fill(null)
-    if (this.ttls) {
-      this.ttls.fill(0)
-      this.starts.fill(0)
-    }
-    if (this.sizes) {
-      this.sizes.fill(0)
-    }
-    this.head = 0
-    this.tail = 0
-    this.initialFill = 1
-    this.free.length = 0
-    this.calculatedSize = 0
-    this.size = 0
-    if (this.disposed) {
-      while (this.disposed.length) {
-        this.disposeAfter(...this.disposed.shift())
-      }
+  get length () { return this[LENGTH] }
+  get itemCount () { return this[LRU_LIST].length }
+
+
+  forEach (fn: { call: (arg0: any, arg1: any, arg2: any, arg3: LRUCache) => void; }, thisp: this) {
+    thisp = thisp || this
+    for (let walker = this[LRU_LIST].head; walker !== null;) {
+      const next = walker.next
+      forEachStep(this, fn, walker, thisp)
+      walker = next
     }
   }
 
-  peek(k: any, { allowStale = this.allowStale } = {}) {
-    const index = this.keyMap.get(k)
-    if (index !== undefined && (allowStale || !this.isStale(index))) {
-      return this.valList[index]
-    }
-  }
-  
-  del(k: any) {
-    let deleted = false
-    if (this.size !== 0) {
-      const index = this.keyMap.get(k)
-      if (index !== undefined) {
-        deleted = true
-        if (this.size === 1) {
-          this.clear()
-        } else {
-          this.removeItemSize(index)
-          const v = this.valList[index]
-          this.dispose(v, k, 'delete')
-          if (this.disposeAfter) {
-            this.disposed!.push([v, k, 'delete'])
-          }
-          this.keyMap.delete(k)
-          this.keyList[index] = null
-          this.valList[index] = null
-          if (index === this.tail) {
-            this.tail = this.prev[index]
-          } else if (index === this.head) {
-            this.head = this.next[index]
-          } else {
-            this.next[this.prev[index]] = this.next[index]
-            this.prev[this.next[index]] = this.prev[index]
-          }
-          this.size--
-          this.free.push(index)
-        }
-      }
-    }
-    if (this.disposed) {
-      while (this.disposed.length) {
-        this.disposeAfter(...this.disposed.shift())
-      }
-    }
-    return deleted
-  }
-  newIndex(): number {
-    if (this.size === 0) {
-      return this.tail
-    }
-    if (this.size === this.max && this.max !== 0) {
-      return this.evict(false)
-    }
-    if (this.free.length !== 0) {
-      return this.free.pop()
-    }
-    // initial fill, just keep writing down the list
-    return this.initialFill++
-  }
-
-  set(
-    k: any,
-    v: any,
-    {
-      ttl = this.ttl,
-      start = perf.now(),
-      noDisposeOnSet = this.noDisposeOnSet,
-      size = 0,
-      sizeCalculation = this.sizeCalculation,
-      noUpdateTTL = this.noUpdateTTL,
-    } = {}
-  ) {
-    size = this.requireSize(k, v, size, sizeCalculation)
-    let index = this.size === 0 ? undefined : this.keyMap.get(k)
-    if (index === undefined) {
-      // addition
-      index = this.newIndex()
-      this.keyList[index] = k
-      this.valList[index] = v
-      this.keyMap.set(k, index)
-      this.next[this.tail] = index
-      this.prev[index] = this.tail
-      this.tail = index
-      this.size++
-      this.addItemSize(index, v, k, size)
-      noUpdateTTL = false
-    } else {
-      // update
-      const oldVal = this.valList[index]
-      if (v !== oldVal) {
-        if (!noDisposeOnSet) {
-          this.dispose(oldVal, k, 'set')
-          if (this.disposeAfter) {
-            this.disposed!.push([oldVal, k, 'set'])
-          }
-        }
-        this.removeItemSize(index)
-        this.valList[index] = v
-        this.addItemSize(index, v, k, size)
-      }
-      this.moveToTail(index)
-    }
-    if (ttl !== 0 && this.ttl === 0 && !this.ttls) {
-      this.initializeTTLTracking()
-    }
-    if (!noUpdateTTL) {
-      this.setItemTTL(index, ttl, start)
-    }
-    if (this.disposeAfter) {
-      while (this.disposed!.length) {
-        this.disposeAfter(...this.disposed!.shift())
-      }
-    }
-    return this
-  }
-  removeItemSize(index: string | number) {
-    (this.calculatedSize -= this.sizes[index])
-  }
-  requireSize(k: any, v: any, size: number, sizeCalculation: (arg0: any, arg1: any) => any) {
-    if (!isPosInt(size)) {
-      if (sizeCalculation) {
-        if (typeof sizeCalculation !== 'function') {
-          throw new TypeError('sizeCalculation must be a function')
-        }
-        size = sizeCalculation(v, k)
-        if (!isPosInt(size)) {
-          throw new TypeError(
-            'sizeCalculation return invalid (expect positive integer)'
-          )
-        }
-      } else {
-        throw new TypeError(
-          'invalid size value (must be positive integer)'
-        )
-      }
-    }
-    return size
-  }
-  addItemSize(index: number, v: any, k: any, size: number) {
-    this.sizes[index] = size
-    const maxSize = this.maxSize - this.sizes[index]
-    while (this.calculatedSize > maxSize) {
-      this.evict(true)
-    }
-    this.calculatedSize += this.sizes[index]
-  }
-  initializeSizeTracking() {
-    this.calculatedSize = 0
-    this.sizes = new ZeroArray(this.max)
-  }
-  evict(free: boolean) {
-    const head = this.head
-    const k = this.keyList[head]
-    const v = this.valList[head]
-    this.dispose(v, k, 'evict')
-    if (this.disposeAfter) {
-      this.disposed!.push([v, k, 'evict'])
-    }
-    this.removeItemSize(head)
-    // if we aren't about to use the index, then null these out
-    if (free) {
-      this.keyList[head] = null
-      this.valList[head] = null
-      this.free.push(head)
-    }
-    this.head = this.next[head]
-    this.keyMap.delete(k)
-    this.size--
-    return head
-  }
-  initializeTTLTracking() {
-    this.ttls = new ZeroArray(this.max)
-    this.starts = new ZeroArray(this.max)
-
-    this.setItemTTL = (index: string | number, ttl: number, start = perf.now()) => {
-      this.starts[index] = ttl !== 0 ? start : 0
-      this.ttls[index] = ttl
-      if (ttl !== 0 && this.ttlAutopurge) {
-        const t = setTimeout(() => {
-          if (this.isStale(index)) {
-            this.delete(this.keyList[index])
-          }
-        }, ttl + 1)
-        /* istanbul ignore else - unref() not supported on all platforms */
-        if (t.unref) {
-          t.unref()
-        }
-      }
-    }
-    this.updateItemAge = index => {
-      this.starts[index] = this.ttls[index] !== 0 ? perf.now() : 0
+  reset () {
+    if (this[DISPOSE] &&
+        this[LRU_LIST] &&
+        this[LRU_LIST].length) {
+      this[LRU_LIST].forEach((hit: { key: string; value: any }) => this[DISPOSE](hit.key, hit.value))
     }
 
-    // debounce calls to perf.now() to 1s so we're not hitting
-    // that costly call repeatedly.
-    let cachedNow = 0
-    const getNow = () => {
-      const n = perf.now()
-      if (this.ttlResolution > 0) {
-        cachedNow = n
-        const t = setTimeout(
-          () => (cachedNow = 0),
-          this.ttlResolution
-        )
-        /* istanbul ignore else - not available on all platforms */
-        if (t.unref) {
-          t.unref()
-        }
-      }
-      return n
-    }
-    this.getRemainingTTL = key => {
-      const index = this.keyMap.get(key)
-      if (index === undefined) {
-        return 0
-      }
-      return this.ttls[index] === 0 || this.starts[index] === 0
-        ? Infinity
-        : this.starts[index] +
-        this.ttls[index] -
-        (cachedNow || getNow())
-    }
-
-    this.isStale = (index: string | number) => {
-      return (
-        this.ttls[index] !== 0 &&
-        this.starts[index] !== 0 &&
-        (cachedNow || getNow()) - this.starts[index] >
-        this.ttls[index]
-      )
-    }
+    this[CACHE] = new Map() // hash of items by key
+    this[LRU_LIST] = new Yallist() // list of items in order of use recency
+    this[LENGTH] = 0 // length of items in the list
   }
 
-  clear() {
-    for (const index of this.rindexes({ allowStale: true })) {
-      const v = this.valList[index]
-      const k = this.keyList[index]
-      this.dispose(v, k, 'delete')
-      if (this.disposeAfter) {
-        this.disposed?.push([v, k, 'delete'])
+  set (key: string, value: any, maxAge?: number) {
+    maxAge = maxAge || this[MAX_AGE]
+
+    if (maxAge && typeof maxAge !== 'number')
+      throw new TypeError('maxAge must be a number')
+
+    const now = maxAge ? Date.now() : 0
+    const len = this[LENGTH_CALCULATOR](value, key)
+
+    if (this[CACHE].has(key)) {
+      if (len > this[MAX]) {
+        del(this, this[CACHE].get(key))
+        return false
       }
-    }
-  }
-   moveToTail(index: number) {
-    // if tail already, nothing to do
-    // if head, move head to next[index]
-    // else
-    //   move next[prev[index]] to next[index] (head has no prev)
-    //   move prev[next[index]] to prev[index]
-    // prev[index] = tail
-    // next[tail] = index
-    // tail = index
-    if (index !== this.tail) {
-      if (index === this.head) {
-        this.head = this.next[index]
-      } else {
-        this.connect(this.prev[index], this.next[index])
+
+      const node = this[CACHE].get(key)
+      const item = node.value
+
+      // dispose of the old one before overwriting
+      // split out into 2 ifs for better coverage tracking
+      if (this[DISPOSE]) {
+        if (!this[NO_DISPOSE_ON_SET])
+          this[DISPOSE](key, item.value)
       }
-      this.connect(this.tail, index)
-      this.tail = index
+
+      item.now = now
+      item.maxAge = maxAge
+      item.value = value
+      this[LENGTH] += len - item.length
+      item.length = len
+      this.get(key)
+      trim(this)
+      return true
     }
+
+    const hit = new Entry(key, value, len, now, maxAge)
+
+    // oversized objects fall out of cache automatically.
+    if (hit.length > this[MAX]) {
+      if (this[DISPOSE])
+        this[DISPOSE](key, value)
+
+      return false
+    }
+
+    this[LENGTH] += hit.length
+    this[LRU_LIST].unshift(hit)
+    this[CACHE].set(key, this[LRU_LIST].head)
+    trim(this)
+    return true
   }
-  connect(p: number, n: number) {
-    this.prev[n] = p
-    this.next[p] = n
+
+  has (key: string) {
+    if (!this[CACHE].has(key)) return false
+    const hit = this[CACHE].get(key).value
+    return !isStale(this, hit)
+  }
+
+  get (key: string) {
+    return get(this, key, true)
+  }
+
+  peek (key: string) {
+    return get(this, key, false)
+  }
+
+
+  del (key: string) {
+    del(this, this[CACHE].get(key))
+  }
+
+  prune () {
+    this[CACHE].forEach((value, key: string) => get(this, key, false))
   }
 }
+
+const get = (self: LRUCache, key: string, doUse?: boolean) => {
+  const node = self[CACHE].get(key)
+  if (node) {
+    const hit = node.value
+    if (isStale(self, hit)) {
+      del(self, node)
+      if (!self[ALLOW_STALE])
+        return undefined
+    } else {
+      if (doUse) {
+        if (self[UPDATE_AGE_ON_GET])
+          node.value.now = Date.now()
+        self[LRU_LIST].unshiftNode(node)
+      }
+    }
+    return hit.value
+  }
+}
+
+const isStale = (self: LRUCache, hit?: { maxAge: number; now: number }) => {
+  if (!hit || (!hit.maxAge && !self[MAX_AGE]))
+    return false
+
+  const diff = Date.now() - hit.now
+  return hit.maxAge ? diff > hit.maxAge
+    : self[MAX_AGE] && (diff > self[MAX_AGE])
+}
+
+const trim = (self: LRUCache) => {
+  if (self[LENGTH] > self[MAX]) {
+    for (let walker = self[LRU_LIST].tail;
+      self[LENGTH] > self[MAX] && walker !== null;) {
+      // We know that we're about to delete this one, and also
+      // what the next least recently used key will be, so just
+      // go ahead and set it now.
+      const prev = walker.prev
+      del(self, walker)
+      walker = prev
+    }
+  }
+}
+
+const del = (self: LRUCache, node: { value: any }) => {
+  if (node) {
+    const hit = node.value
+    if (self[DISPOSE])
+      self[DISPOSE](hit.key, hit.value)
+
+    self[LENGTH] -= hit.length
+    self[CACHE].delete(hit.key)
+    self[LRU_LIST].removeNode(node)
+  }
+}
+
+class Entry {
+    key: string;
+    value: any;
+    length: number;
+    now: number;
+    maxAge: number;
+  constructor (key: string, value: any, length: number, now: number, maxAge?: number) {
+    this.key = key
+    this.value = value
+    this.length = length
+    this.now = now
+    this.maxAge = maxAge || 0
+  }
+}
+
+const forEachStep = (self: LRUCache, fn: { call: (arg0: any, arg1: any, arg2: any, arg3: LRUCache) => void }, node: { value: any }, thisp: LRUCache) => {
+  let hit = node.value
+  if (isStale(self, hit)) {
+    del(self, node)
+    if (!self[ALLOW_STALE])
+      hit = undefined
+  }
+  if (hit)
+    fn.call(thisp, hit.value, hit.key, self)
+}
+
 export default LRUCache

@@ -12,14 +12,14 @@ import { CoapServerOptions, requestListener, CoapPacket, Block, MiddlewareParame
 import BlockCache from './cache'
 import OutgoingMessage from './outgoing_message'
 import { Socket, createSocket, SocketOptions } from 'dgram'
-import LRUCache from 'lru-cache'
+import LRUCache from './lru-cache'
 import os from 'os'
 import IncomingMessage from './incoming_message'
 import ObserveStream from './observe_write_stream'
 import RetrySend from './retry_send'
 import { handleProxyResponse, handleServerRequest, parseRequest, proxyRequest } from './middlewares'
 import { parseBlockOption } from './block'
-import { generate, NamedOption, Option, ParsedPacket } from 'coap-packet'
+import { generate, NamedOption, Option, ParsedPacket } from './coap-packet'
 import { parseBlock2, createBlock2, getOption, isNumeric, isBoolean } from './helpers'
 import { parameters } from './parameters'
 import series from './fastseries'
@@ -79,7 +79,7 @@ function allAddresses (type): string[] {
     return addresses
 }
 
-class CoapLRUCache<K, V> extends LRUCache<K, V> {
+class CoapLRUCache extends LRUCache {
     pruneTimer: NodeJS.Timer
 }
 
@@ -89,7 +89,7 @@ class CoAPServer extends EventEmitter {
     _middlewares: Function[]
     _multicastAddress: string | null
     _multicastInterface: string | null
-    _lru: CoapLRUCache<string, any>
+    _lru: CoapLRUCache
     _series: any
     _block1Cache: BlockCache<Buffer | {}>
     _block2Cache: BlockCache<Buffer | null>
@@ -388,7 +388,7 @@ class CoAPServer extends EventEmitter {
      * @param packet The packet that was sent from the client.
      * @param rsinfo Connection info
      */
-    _handle (packet: CoapPacket, rsinfo: AddressInfo): void {
+    _handle (packet: CoapPacket, rsinfo: AddressInfo): void | boolean {
         if (packet.code == null || packet.code[0] !== '0') {
             // According to RFC7252 Section 4.2 receiving a confirmable messages
             // that can't be processed, should be rejected by ignoring it AND
